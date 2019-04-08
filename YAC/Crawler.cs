@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using YAC.Abstractions;
 
@@ -8,6 +10,8 @@ namespace YAC
     public class Crawler : ICrawler
     {
         private readonly IWebAgent _webAgent;
+
+        private bool _aThreadIsComplete;
 
         public Crawler(IWebAgent webAgent)
         {
@@ -32,8 +36,21 @@ namespace YAC
                 // upon completion, the thread that first completed should flag that the other threads need to complete too,
                 // even those stuck in the initial holding pattern (if any)
 
+                // flush queues and return the list of data found during the crawl
                 return new List<string>();
             });
+
+        private void ThreadAction(ManualResetEvent doneEvent, IEnumerable<ICrawlCompletionCondition> completionConditions, CancellationToken cancellationToken)
+        {
+            do
+            {
+                
+            } while (completionConditions.All(cc => !cc.ConditionMet()) && !cancellationToken.IsCancellationRequested && !_aThreadIsComplete);
+
+            doneEvent.Set();
+            if (!_aThreadIsComplete)
+                _aThreadIsComplete = true;
+        }
 
         public void Dispose()
         {
