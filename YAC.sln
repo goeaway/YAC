@@ -5,6 +5,8 @@ VisualStudioVersion = 15.0.28307.271
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YAC", "YAC\YAC.csproj", "{F9BBC619-6753-4F0B-9720-3D2CBEAB96B4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "YAC.Tests", "YAC.Tests\YAC.Tests.csproj", "{2EB6C90D-F46A-427E-8738-B08A765B76EF}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -15,6 +17,10 @@ Global
 		{F9BBC619-6753-4F0B-9720-3D2CBEAB96B4}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{F9BBC619-6753-4F0B-9720-3D2CBEAB96B4}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{F9BBC619-6753-4F0B-9720-3D2CBEAB96B4}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2EB6C90D-F46A-427E-8738-B08A765B76EF}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2EB6C90D-F46A-427E-8738-B08A765B76EF}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2EB6C90D-F46A-427E-8738-B08A765B76EF}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2EB6C90D-F46A-427E-8738-B08A765B76EF}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
