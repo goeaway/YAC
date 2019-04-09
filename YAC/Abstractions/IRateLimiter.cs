@@ -6,7 +6,7 @@ namespace YAC.Abstractions
 {
     public interface IRateLimiter
     {
-        void HoldUntilReady();
-        bool CanAccess();
+        void HoldUntilReady(string domain);
+        bool CanAccess(string domain);
     }
 }
