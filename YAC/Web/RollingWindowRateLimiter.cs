@@ -7,12 +7,12 @@ namespace YAC.Web
 {
     public class RollingWindowRateLimiter : IRateLimiter
     {
-        public bool CanAccess()
+        public bool CanAccess(string domain)
         {
             throw new NotImplementedException();
         }
 
-        public void HoldUntilReady()
+        public void HoldUntilReady(string domain)
         {
             throw new NotImplementedException();
         }

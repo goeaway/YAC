@@ -12,6 +12,8 @@ namespace YAC
 {
     public class Crawler : ICrawler
     {
+        private const int QUEUE_MAX = 2000;
+
         private readonly IWebAgent _webAgent;
 
         private bool _aThreadIsComplete;
@@ -82,17 +84,16 @@ namespace YAC
             {
                 threads.Add(
                     new Thread(
-                        async () => await ThreadAction(
-                            job.CompletionConditions, 
-                            job.CancellationToken)));
+                        async () => await ThreadAction(job)));
             }
 
             return threads;
         }
 
-        private async Task ThreadAction(IEnumerable<ICrawlCompletionCondition> completionConditions, CancellationToken cancellationToken)
+        private async Task ThreadAction(CrawlJob job)
         {
-            while (completionConditions.All(cc => !cc.ConditionMet()) && !cancellationToken.IsCancellationRequested &&
+            while (job.CompletionConditions.All(cc => !cc.ConditionMet()) && 
+                   !job.CancellationToken.IsCancellationRequested &&
                    !_aThreadIsComplete)
             {
                 // get the next Uri to crawl
@@ -111,12 +112,24 @@ namespace YAC
                     var html = reader.ReadToEnd();
 
                     // parse the contents for new links and data user wants
+                    var data = DataExtractor.Extract(html, job.Domain, job.Regex);
 
                     // add links found to queue if they're part of the domain and not already crawled and not already in the queue
                     // and not a disallowed url
                     // and make sure the queue is not too big
+                    foreach (var link in data.Links)
+                    {
+                        if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                        {
+                            _queue.Enqueue(link);
+                        }
+                    }
 
                     // add data matching the regex to the return list
+                    foreach (var foundData in data.Data)
+                    {
+                        _results.Add(foundData);
+                    }
                 }
             }
 
