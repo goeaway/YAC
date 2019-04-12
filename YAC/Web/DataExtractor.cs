@@ -53,10 +53,12 @@ namespace YAC.Web
                         }
                     }
 
+                    // try to add data if the user has set a regex
                     if (customRegexUsed)
                     {
                         foreach (var groupName in regex.GetGroupNames())
                         {
+                            // don't add the yaclinks to the data
                             if (groupName == "yaclink")
                                 continue;
 
