@@ -8,11 +8,12 @@ namespace YAC.Web
 {
     public static class DataExtractor
     {
-        private const string LINK_REGEX = "<a.+?href=\"(?<link>.+?)\".+?>";
+        private const string LINK_REGEX = "<a.+?href=\"(?<yaclink>.+?)\".+?>";
 
         public static ExtractedData Extract(string html, Uri domain, string pattern)
         {
-            var primedPattern = string.IsNullOrEmpty(pattern) ? "" : "|" + pattern;
+            var customRegexUsed = string.IsNullOrEmpty(pattern);
+            var primedPattern = customRegexUsed ? "" : "|" + pattern;
             var combinedRegexPatterns = LINK_REGEX + primedPattern;
 
             var regex = new Regex(combinedRegexPatterns);
@@ -25,28 +26,47 @@ namespace YAC.Web
             {
                 if (m.Success)
                 {
-                    var link = m.Groups["link"];
-                    var value = link.Value;
+                    var link = m.Groups["yaclink"];
 
-                    // false links go here
-                    if (value.Contains("#") || value.Contains("javascript:void(0)"))
-                        continue;
-
-                    // full URLs sometimes hide behind "//"
-                    if (value.StartsWith("//"))
-                        value = value.Substring(2);
-
-                    // add the link if:
-                    // it starts with the whole domain
-                    // it starts with the domain (without the host)
-                    // it starts with a single / and the domain is only the host (no extra path)
-                    if (value.StartsWith(domain.OriginalString))
+                    if (link != null)
                     {
-                        data.Links.Add(new Uri(value));
+                        var value = link.Value;
+
+                        // false links go here
+                        if (value.Contains("#") || value.Contains("javascript:void(0)"))
+                            continue;
+
+                        // full URLs sometimes hide behind "//"
+                        if (value.StartsWith("//"))
+                            value = value.Substring(2);
+
+                        // add the link if:
+                        // it starts with the whole domain
+                        // it starts with the domain (without the host)
+                        if (value.StartsWith(domain.OriginalString))
+                        {
+                            data.Links.Add(new Uri(value));
+                        }
+                        else if (value.StartsWith(domain.AbsolutePath))
+                        {
+                            data.Links.Add(new Uri("http://" + domain.Host + value));
+                        }
                     }
-                    else if (value.StartsWith(domain.AbsolutePath))
+
+                    if (customRegexUsed)
                     {
-                        data.Links.Add(new Uri("http://" + domain.Host + value));
+                        foreach (var groupName in regex.GetGroupNames())
+                        {
+                            if (groupName == "yaclink")
+                                continue;
+
+                            var value = m.Groups[groupName];
+
+                            if (value != null)
+                            {
+                                data.Data.Add(new Tuple<string, string>(groupName, value.Value));
+                            }
+                        }
                     }
                 }
             }

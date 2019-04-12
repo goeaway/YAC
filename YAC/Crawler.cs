@@ -3,6 +3,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using YAC.Abstractions;
@@ -19,7 +20,7 @@ namespace YAC
         private bool _aThreadIsComplete;
         private ConcurrentQueue<Uri> _queue;
         private ConcurrentBag<Uri> _crawled;
-        private ConcurrentBag<string> _results;
+        private ConcurrentBag<Tuple<string, string>> _results;
         private IEnumerable<string> _disallowedUrls;
 
         public Crawler(IWebAgent webAgent)
@@ -32,11 +33,11 @@ namespace YAC
             // add the seeds to the queue first
             _queue = new ConcurrentQueue<Uri>(seedUris);
             _crawled = new ConcurrentBag<Uri>();
-            _results = new ConcurrentBag<string>();
+            _results = new ConcurrentBag<Tuple<string, string>>();
             _aThreadIsComplete = false;
         }
 
-        public async Task<IEnumerable<string>> Crawl(CrawlJob job)
+        public async Task<IEnumerable<Tuple<string, string>>> Crawl(CrawlJob job)
         {
             Setup(job.SeedUris);
 
@@ -109,32 +110,39 @@ namespace YAC
                     break;
                 }
 
-                // access it
-                var response = _webAgent.ExecuteRequest(next);
-
-                // log that we've crawled it
-                _crawled.Add(next);
-
-                var html = HTMLRetriever.GetHTML(_webAgent.GetCompressedStream(await response));
-
-                // parse the contents for new links and data user wants
-                var data = DataExtractor.Extract(html, job.Domain, job.Regex);
-
-                // add links found to queue if they're part of the domain and not already crawled and not already in the queue
-                // and not a disallowed url
-                // and make sure the queue is not too big
-                foreach (var link in data.Links)
+                try
                 {
-                    if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                    // access it
+                    var response = _webAgent.ExecuteRequest(next);
+
+                    // log that we've crawled it
+                    _crawled.Add(next);
+
+                    var html = HTMLRetriever.GetHTML(_webAgent.GetCompressedStream(await response));
+
+                    // parse the contents for new links and data user wants
+                    var data = DataExtractor.Extract(html, job.Domain, job.Regex);
+
+                    // add links found to queue if they're part of the domain and not already crawled and not already in the queue
+                    // and not a disallowed url
+                    // and make sure the queue is not too big
+                    foreach (var link in data.Links)
                     {
-                        _queue.Enqueue(link);
+                        if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                        {
+                            _queue.Enqueue(link);
+                        }
+                    }
+
+                    // add data matching the regex to the return list
+                    foreach (var foundData in data.Data)
+                    {
+                        _results.Add(foundData);
                     }
                 }
-
-                // add data matching the regex to the return list
-                foreach (var foundData in data.Data)
+                catch (WebException e)
                 {
-                    _results.Add(foundData);
+                       
                 }
             }
 

@@ -16,9 +16,10 @@ namespace YAC.Tests
             var domain = new Uri("https://domain.com");
             var extracted = DataExtractor.Extract(
                 "<a href=\"https://domain.com/area\"></a>" +
+                "<img src=\"source.jpg\" />" +
                 "<a href=\"/area\"></a>" + 
                 "<a href=\"/\"></a>",
-                domain, "");
+                domain, "<img.+?(?<source>src)=\"(?<sourcename>.+?)\"");
 
             Assert.AreEqual(3, extracted.Links.Count);
         }
