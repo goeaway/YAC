@@ -27,10 +27,10 @@ namespace YAC
             _webAgent = webAgent;
         }
 
-        private void Setup(Uri domain)
+        private void Setup(IReadOnlyCollection<Uri> seedUris)
         {
-            // add the domain to the queue first
-            _queue = new ConcurrentQueue<Uri>(new List<Uri> {domain});
+            // add the seeds to the queue first
+            _queue = new ConcurrentQueue<Uri>(seedUris);
             _crawled = new ConcurrentBag<Uri>();
             _results = new ConcurrentBag<string>();
             _aThreadIsComplete = false;
@@ -38,7 +38,7 @@ namespace YAC
 
         public async Task<IEnumerable<string>> Crawl(CrawlJob job)
         {
-            Setup(job.Domain);
+            Setup(job.SeedUris);
 
             // try and parse the robots.txt file of the domain and add any disallowed links to a read only collection
             _disallowedUrls = await RobotParser.GetDisallowedUrls(_webAgent, job.Domain.Host);
@@ -48,26 +48,28 @@ namespace YAC
                 return _results;
 
             // create the allowed amount of threads for the job
-            var threads = CreateThreads(job);
-
+            var threadsAndDoneEvents = CreateThreads(job);
             // hold all but one thread in a pattern until there is work for them
             // start the first thread off, with the job of parsing the domain page provided
-            threads.First().Start();
+            threadsAndDoneEvents.Item1.First().Start();
 
-            if (threads.Count() > 1)
+            if (threadsAndDoneEvents.Item1.Count() > 1)
             {
                 // once work comes in for each thread, release from the holding pattern and allow them to work
-                for (int i = 1; i < threads.Count(); i++)
+                for (int i = 1; i < threadsAndDoneEvents.Item1.Count(); i++)
                 {
                     if (_queue.Count >= i)
                     {
-                        threads[i].Start();
+                        threadsAndDoneEvents.Item1[i].Start();
                     }
                 }
             }
 
+            // wait for done events
+            WaitHandle.WaitAll(threadsAndDoneEvents.Item2.ToArray());
+
             // flush queues and return the list of data found during the crawl
-            foreach (var thread in threads)
+            foreach (var thread in threadsAndDoneEvents.Item1)
             {
                 if(thread.ThreadState == ThreadState.Running)
                     thread.Join();
@@ -76,21 +78,24 @@ namespace YAC
             return _results;
         }
 
-        private List<Thread> CreateThreads(CrawlJob job)
+        private Tuple<List<Thread>, List<ManualResetEvent>> CreateThreads(CrawlJob job)
         {
             var threads = new List<Thread>();
+            var events = new List<ManualResetEvent>();
 
-            for (int i = 0; i < job.ThreadAllowance; i++)
+            for (int i = 0; i < Math.Max(1, job.ThreadAllowance); i++)
             {
+                var doneEvent = new ManualResetEvent(false);
+                events.Add(doneEvent);
                 threads.Add(
                     new Thread(
-                        async () => await ThreadAction(job)));
+                        async () => await ThreadAction(job, doneEvent)));
             }
 
-            return threads;
+            return new Tuple<List<Thread>, List<ManualResetEvent>>(threads, events);
         }
 
-        private async Task ThreadAction(CrawlJob job)
+        private async Task ThreadAction(CrawlJob job, ManualResetEvent doneEvent)
         {
             while (job.CompletionConditions.All(cc => !cc.ConditionMet()) && 
                    !job.CancellationToken.IsCancellationRequested &&
@@ -99,42 +104,44 @@ namespace YAC
                 // get the next Uri to crawl
                 var next = GetNext();
 
+                if (next == null)
+                {
+                    break;
+                }
+
                 // access it
                 var response = _webAgent.ExecuteRequest(next);
 
                 // log that we've crawled it
                 _crawled.Add(next);
 
-                // access the contents
-                using (var reader = new StreamReader(_webAgent.GetCompressedStream(await response)))
+                var html = HTMLRetriever.GetHTML(_webAgent.GetCompressedStream(await response));
+
+                // parse the contents for new links and data user wants
+                var data = DataExtractor.Extract(html, job.Domain, job.Regex);
+
+                // add links found to queue if they're part of the domain and not already crawled and not already in the queue
+                // and not a disallowed url
+                // and make sure the queue is not too big
+                foreach (var link in data.Links)
                 {
-                    // read out contents
-                    var html = reader.ReadToEnd();
-
-                    // parse the contents for new links and data user wants
-                    var data = DataExtractor.Extract(html, job.Domain, job.Regex);
-
-                    // add links found to queue if they're part of the domain and not already crawled and not already in the queue
-                    // and not a disallowed url
-                    // and make sure the queue is not too big
-                    foreach (var link in data.Links)
+                    if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
                     {
-                        if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
-                        {
-                            _queue.Enqueue(link);
-                        }
+                        _queue.Enqueue(link);
                     }
+                }
 
-                    // add data matching the regex to the return list
-                    foreach (var foundData in data.Data)
-                    {
-                        _results.Add(foundData);
-                    }
+                // add data matching the regex to the return list
+                foreach (var foundData in data.Data)
+                {
+                    _results.Add(foundData);
                 }
             }
 
             if (!_aThreadIsComplete)
                 _aThreadIsComplete = true;
+
+            doneEvent.Set();
         }
 
         private Uri GetNext()
