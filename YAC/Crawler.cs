@@ -28,6 +28,8 @@ namespace YAC
         private IEnumerable<string> _disallowedUrls;
         private DateTime _startTime;
 
+        public bool IsRunning { get; private set; }
+
         public Crawler(IWebAgent webAgent)
         {
             _webAgent = webAgent;
@@ -41,6 +43,7 @@ namespace YAC
             _results = new ConcurrentBag<Tuple<string, string>>();
             _errors = new ConcurrentBag<Exception>();
             _aThreadIsComplete = false;
+
         }
 
         public async Task<CrawlReport> Crawl(CrawlJob job)
@@ -58,24 +61,37 @@ namespace YAC
             var threadsAndDoneEvents = CreateThreads(job);
 
             _startTime = DateTime.Now;
-            // hold all but one thread in a pattern until there is work for them
-            // start the first thread off, with the job of parsing the domain page provided
-            foreach (var thread in threadsAndDoneEvents.Item1)
+            IsRunning = true;
+
+            try
             {
-                thread.Start();
+                // hold all but one thread in a pattern until there is work for them
+                // start the first thread off, with the job of parsing the domain page provided
+                foreach (var thread in threadsAndDoneEvents.Item1)
+                {
+                    thread.Start();
+                }
+
+                // wait for done events
+                WaitHandle.WaitAll(threadsAndDoneEvents.Item2.ToArray());
+
+                // flush queues and return the list of data found during the crawl
+                foreach (var thread in threadsAndDoneEvents.Item1)
+                {
+                    if (thread.ThreadState == ThreadState.Running)
+                        thread.Join();
+                }
+
+                return GetCrawlReport();
             }
-
-            // wait for done events
-            WaitHandle.WaitAll(threadsAndDoneEvents.Item2.ToArray());
-
-            // flush queues and return the list of data found during the crawl
-            foreach (var thread in threadsAndDoneEvents.Item1)
+            catch (Exception e)
             {
-                if(thread.ThreadState == ThreadState.Running)
-                    thread.Join();
+                throw new YACException("Exception thrown from YAC", e);
             }
-
-            return GetCrawlReport();
+            finally
+            {
+                IsRunning = false;
+            }
         }
 
         private Tuple<List<Thread>, List<ManualResetEvent>> CreateThreads(CrawlJob job)

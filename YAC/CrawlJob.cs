@@ -29,8 +29,16 @@ namespace YAC
         public string Regex { get; set; }
         public IEnumerable<ICrawlCompletionCondition> CompletionConditions { get; set; }
         public int ThreadAllowance { get; set; }
-        public CancellationToken CancellationToken { get; set; }
+        public CancellationToken CancellationToken { get; }
 
-        
+        public CrawlJob()
+        {
+
+        }
+
+        public CrawlJob(CancellationToken token)
+        {
+            CancellationToken = token;
+        }
     }
 }

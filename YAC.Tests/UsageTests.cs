@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using YAC.Abstractions;
@@ -15,11 +16,14 @@ namespace YAC.Tests
         [TestMethod]
         public async Task Test()
         {
-            var limiter = new RollingWindowRateLimiter();
+            var limiter = new RollingWindowRateLimiter(10, TimeSpan.FromMinutes(1));
             var agent = new WebAgent(limiter);
+
+            var cancelSource = new CancellationTokenSource();
+
             using (var crawler = new Crawler(agent))
             {
-                var job = new CrawlJob
+                var job = new CrawlJob(cancelSource.Token)
                 {
                     Domain = new Uri("https://reddit.com/r/pics"),
                     CompletionConditions = new List<ICrawlCompletionCondition>
@@ -31,7 +35,12 @@ namespace YAC.Tests
                     ThreadAllowance = 1,
                     Regex = "<img.+?src=\"(?<image>.+?)\""
                 };
-                var results = await crawler.Crawl(job);
+                var crawlTask = crawler.Crawl(job);
+
+                Thread.Sleep(5000);
+                cancelSource.Cancel();
+                
+                var results = await crawlTask;
 
                 Console.WriteLine(results.CrawlCount);
                 Console.WriteLine(results.QueueSize);

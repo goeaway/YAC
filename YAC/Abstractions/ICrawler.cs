@@ -8,6 +8,7 @@ namespace YAC.Abstractions
 {
     public interface ICrawler : IDisposable
     {
+        bool IsRunning { get; }
         Task<CrawlReport> Crawl(CrawlJob job);
     }
 }
