@@ -6,7 +6,7 @@ using YAC.Abstractions.Services;
 
 namespace YAC.Services
 {
-    public class DummyProxyService : IProxyService
+    public class DefaultProxyService : IProxyService
     {
         public IWebProxy GetProxy()
         {

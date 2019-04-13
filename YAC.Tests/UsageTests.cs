@@ -18,7 +18,7 @@ namespace YAC.Tests
         public async Task Test()
         {
             var limiter = new RollingWindowRateLimiter(10, TimeSpan.FromMinutes(1));
-            var proxyService = new DummyProxyService();
+            var proxyService = new DefaultProxyService();
             var agent = new WebAgent(limiter, proxyService);
 
             using (var crawler = new Crawler(agent))
