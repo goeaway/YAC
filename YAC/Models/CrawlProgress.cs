@@ -11,5 +11,6 @@ namespace YAC.Models
         public int QueueSize { get; set; }
         public int CrawlCount { get; set; }
         public int ResultsCount { get; set; }
+        public List<Exception> Exceptions { get; set; }
     }
 }

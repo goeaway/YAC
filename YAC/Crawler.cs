@@ -22,6 +22,7 @@ namespace YAC
         private ConcurrentQueue<Uri> _queue;
         private ConcurrentBag<Uri> _crawled;
         private ConcurrentBag<Tuple<string, string>> _results;
+        private ConcurrentBag<Exception> _errors;
         private IEnumerable<string> _disallowedUrls;
         private DateTime _startTime;
 
@@ -39,7 +40,7 @@ namespace YAC
             _aThreadIsComplete = false;
         }
 
-        public async Task<IEnumerable<Tuple<string, string>>> Crawl(CrawlJob job)
+        public async Task<CrawlReport> Crawl(CrawlJob job)
         {
             Setup(job.SeedUris);
 
@@ -48,7 +49,7 @@ namespace YAC
 
             // quit early as we are not allowed to go on this domain
             if (_disallowedUrls.Contains("/"))
-                return _results;
+                return GetCrawlReport();
 
             // create the allowed amount of threads for the job
             var threadsAndDoneEvents = CreateThreads(job);
@@ -71,7 +72,7 @@ namespace YAC
                     thread.Join();
             }
 
-            return _results;
+            return GetCrawlReport();
         }
 
         private Tuple<List<Thread>, List<ManualResetEvent>> CreateThreads(CrawlJob job)
@@ -98,8 +99,16 @@ namespace YAC
                 Start = _startTime,
                 CrawlCount = _crawled.Count,
                 ResultsCount = _results.Count,
-                QueueSize =  _queue.Count
+                QueueSize =  _queue.Count,
+                Exceptions = _errors.ToList()
             };
+        }
+
+        private CrawlReport GetCrawlReport()
+        {
+            var report = GetCrawlProgress() as CrawlReport;
+            report.Data = _results;
+            return report;
         }
 
         private async Task ThreadAction(CrawlJob job, ManualResetEvent doneEvent)
@@ -155,11 +164,7 @@ namespace YAC
                 }
                 catch (WebException e)
                 {
-
-                }
-                catch (Exception e)
-                {
-                    throw e;
+                    _errors.Add(e);
                 }
             }
 

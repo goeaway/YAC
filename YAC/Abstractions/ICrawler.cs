@@ -2,11 +2,12 @@
 using System.Collections.Generic;
 using System.Text;
 using System.Threading.Tasks;
+using YAC.Models;
 
 namespace YAC.Abstractions
 {
     public interface ICrawler : IDisposable
     {
-        Task<IEnumerable<Tuple<string, string>>> Crawl(CrawlJob job);
+        Task<CrawlReport> Crawl(CrawlJob job);
     }
 }
