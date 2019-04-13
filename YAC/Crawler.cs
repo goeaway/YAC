@@ -7,8 +7,6 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using Polly;
-using Polly.Fallback;
-using Polly.Retry;
 using YAC.Abstractions;
 using YAC.Exceptions;
 using YAC.Models;
@@ -30,20 +28,9 @@ namespace YAC
         private IEnumerable<string> _disallowedUrls;
         private DateTime _startTime;
 
-        private readonly RetryPolicy _retry;
-        private readonly FallbackPolicy _fallback;
-
         public Crawler(IWebAgent webAgent)
         {
             _webAgent = webAgent;
-
-            _retry = Policy
-                .Handle<CrawlQueueEmptyException>()
-                .WaitAndRetry(5, tryNum => TimeSpan.FromMilliseconds(100));
-
-            _fallback = Policy
-                .Handle<CrawlQueueEmptyException>()
-                .Fallback(() => { _aThreadIsComplete = true; });
         }
 
         private void Setup(IReadOnlyCollection<Uri> seedUris)
@@ -136,7 +123,7 @@ namespace YAC
             // sort out multi threading holding pattern
             if (worker.Id != 0)
             {
-                while (_queue.Count < worker.Id && !job.CancellationToken.IsCancellationRequested && !_aThreadIsComplete)
+                while (_queue.Count < (worker.Id + 1) && !job.CancellationToken.IsCancellationRequested && !_aThreadIsComplete)
                 {
                     Thread.Sleep(100);
                 }
@@ -146,7 +133,19 @@ namespace YAC
                    !job.CancellationToken.IsCancellationRequested &&
                    !_aThreadIsComplete)
             {
-                var next = Policy.Wrap(_retry, _fallback).Execute(() =>
+                // set up fallback and retry policies
+                var fallback = Policy<Uri>.Handle<CrawlQueueEmptyException>()
+                    .Fallback((cToken) =>
+                    {
+                        _aThreadIsComplete = true;
+                        return null;
+                    });
+
+                var retry = Policy<Uri>.Handle<CrawlQueueEmptyException>()
+                    .WaitAndRetry(30, tryNum => TimeSpan.FromMilliseconds(tryNum * 200));
+
+                // will attempt to get a new item from the queue, retrying as per above policies
+                var next = Policy.Wrap(fallback, retry).Execute(() =>
                 {
                     var n = GetNext();
 
@@ -156,8 +155,9 @@ namespace YAC
                     return n;
                 });
 
+                // fallback will set this if we failed to get a new link (this will end the crawl)
                 if (_aThreadIsComplete)
-                    break;
+                    continue;
 
                 try
                 {
@@ -211,8 +211,7 @@ namespace YAC
             if (_queue.IsEmpty)
                 return null;
 
-            var result = _queue.TryDequeue(out Uri next);
-            if (!result)
+            if (!_queue.TryDequeue(out Uri next))
                 next = GetNext();
 
             return next;

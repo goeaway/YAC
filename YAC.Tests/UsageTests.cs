@@ -28,7 +28,7 @@ namespace YAC.Tests
                         new MaxTimeCondition(TimeSpan.FromMinutes(3)),
                         new MaxResultsFoundCondition(2000)
                     },
-                    ThreadAllowance = 2,
+                    ThreadAllowance = 10,
                     Regex = "<img.+?src\"(?<image>.+?)\""
                 };
                 var results = await crawler.Crawl(job);
