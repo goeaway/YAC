@@ -19,11 +19,9 @@ namespace YAC.Tests
             var limiter = new RollingWindowRateLimiter(10, TimeSpan.FromMinutes(1));
             var agent = new WebAgent(limiter);
 
-            var cancelSource = new CancellationTokenSource();
-
             using (var crawler = new Crawler(agent))
             {
-                var job = new CrawlJob(cancelSource.Token)
+                var job = new CrawlJob()
                 {
                     Domain = new Uri("https://reddit.com/r/pics"),
                     CompletionConditions = new List<ICrawlCompletionCondition>
@@ -38,7 +36,7 @@ namespace YAC.Tests
                 var crawlTask = crawler.Crawl(job);
 
                 Thread.Sleep(5000);
-                cancelSource.Cancel();
+                crawler.Cancel();
                 
                 var results = await crawlTask;
 

@@ -27,12 +27,22 @@ namespace YAC
         private ConcurrentBag<Exception> _errors;
         private IEnumerable<string> _disallowedUrls;
         private DateTime _startTime;
+        private CancellationTokenSource _cancelSource;
+        private DateTime _lastUpdate;
+        private readonly TimeSpan _updateInterval;
+        private readonly Action<CrawlProgress> _updateAction;
 
         public bool IsRunning { get; private set; }
 
-        public Crawler(IWebAgent webAgent)
+        public Crawler(IWebAgent webAgent) : this(webAgent, cp => { }, TimeSpan.MaxValue)
+        {
+        }
+
+        public Crawler(IWebAgent webAgent, Action<CrawlProgress> updateAction, TimeSpan updateInterval)
         {
             _webAgent = webAgent;
+            _updateInterval = updateInterval;
+            _updateAction = updateAction;
         }
 
         private void Setup(IReadOnlyCollection<Uri> seedUris)
@@ -43,7 +53,17 @@ namespace YAC
             _results = new ConcurrentBag<Tuple<string, string>>();
             _errors = new ConcurrentBag<Exception>();
             _aThreadIsComplete = false;
+            _cancelSource = new CancellationTokenSource();
+        }
 
+        #region - Interface -
+
+        public void Cancel()
+        {
+            if(!IsRunning) 
+                throw new CrawlerNotRunningException();
+
+            _cancelSource.Cancel();
         }
 
         public async Task<CrawlReport> Crawl(CrawlJob job)
@@ -61,6 +81,7 @@ namespace YAC
             var threadsAndDoneEvents = CreateThreads(job);
 
             _startTime = DateTime.Now;
+            _lastUpdate = _startTime;
             IsRunning = true;
 
             try
@@ -93,6 +114,15 @@ namespace YAC
                 IsRunning = false;
             }
         }
+
+        public void Dispose()
+        {
+
+        }
+
+        #endregion
+
+        #region - Private -
 
         private Tuple<List<Thread>, List<ManualResetEvent>> CreateThreads(CrawlJob job)
         {
@@ -134,21 +164,31 @@ namespace YAC
             return report;
         }
 
+        private bool NeedsUpdate()
+        {
+            return (DateTime.Now - _lastUpdate) >= _updateInterval;
+        }
+
         private async Task ThreadAction(IWorker worker, CrawlJob job)
         {
             // sort out multi threading holding pattern
             if (worker.Id != 0)
             {
-                while (_queue.Count < (worker.Id + 1) && !job.CancellationToken.IsCancellationRequested && !_aThreadIsComplete)
+                while (_queue.Count < (worker.Id + 1) && !_cancelSource.Token.IsCancellationRequested && !_aThreadIsComplete)
                 {
                     Thread.Sleep(100);
                 }
             }
 
             while (job.CompletionConditions.All(cc => !cc.ConditionMet(GetCrawlProgress())) && 
-                   !job.CancellationToken.IsCancellationRequested &&
+                   !_cancelSource.Token.IsCancellationRequested &&
                    !_aThreadIsComplete)
             {
+                if (worker.Id == 0 && NeedsUpdate())
+                {
+                    _updateAction(GetCrawlProgress());
+                }
+
                 // set up fallback and retry policies
                 var fallback = Policy<Uri>.Handle<CrawlQueueEmptyException>()
                     .Fallback((cToken) =>
@@ -233,9 +273,6 @@ namespace YAC
             return next;
         }
 
-        public void Dispose()
-        {
-
-        }
+        #endregion
     }
 }

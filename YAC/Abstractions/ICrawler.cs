@@ -9,6 +9,7 @@ namespace YAC.Abstractions
     public interface ICrawler : IDisposable
     {
         bool IsRunning { get; }
+        void Cancel();
         Task<CrawlReport> Crawl(CrawlJob job);
     }
 }
