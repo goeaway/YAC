@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using YAC.Abstractions;
@@ -27,9 +28,14 @@ namespace YAC.Tests
                         new MaxTimeCondition(TimeSpan.FromMinutes(3)),
                         new MaxResultsFoundCondition(2000)
                     },
+                    ThreadAllowance = 2,
                     Regex = "<img.+?src\"(?<image>.+?)\""
                 };
                 var results = await crawler.Crawl(job);
+
+                Console.WriteLine(results.CrawlCount);
+                Console.WriteLine(results.QueueSize);
+                Console.WriteLine(results.ResultsCount);
             }
         }
     }

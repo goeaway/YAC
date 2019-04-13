@@ -6,7 +6,11 @@ using System.Linq;
 using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
+using Polly;
+using Polly.Fallback;
+using Polly.Retry;
 using YAC.Abstractions;
+using YAC.Exceptions;
 using YAC.Models;
 using YAC.Web;
 
@@ -26,9 +30,20 @@ namespace YAC
         private IEnumerable<string> _disallowedUrls;
         private DateTime _startTime;
 
+        private readonly RetryPolicy _retry;
+        private readonly FallbackPolicy _fallback;
+
         public Crawler(IWebAgent webAgent)
         {
             _webAgent = webAgent;
+
+            _retry = Policy
+                .Handle<CrawlQueueEmptyException>()
+                .WaitAndRetry(5, tryNum => TimeSpan.FromMilliseconds(100));
+
+            _fallback = Policy
+                .Handle<CrawlQueueEmptyException>()
+                .Fallback(() => { _aThreadIsComplete = true; });
         }
 
         private void Setup(IReadOnlyCollection<Uri> seedUris)
@@ -37,6 +52,7 @@ namespace YAC
             _queue = new ConcurrentQueue<Uri>(seedUris);
             _crawled = new ConcurrentBag<Uri>();
             _results = new ConcurrentBag<Tuple<string, string>>();
+            _errors = new ConcurrentBag<Exception>();
             _aThreadIsComplete = false;
         }
 
@@ -83,18 +99,22 @@ namespace YAC
             for (int i = 0; i < Math.Max(1, job.ThreadAllowance); i++)
             {
                 var doneEvent = new ManualResetEvent(false);
+                var id = i;
+                var thread = new Thread(async () => await ThreadAction(new Worker(id, doneEvent), job))
+                {
+                    Name = "YAC Worker"
+                };
+
                 events.Add(doneEvent);
-                threads.Add(
-                    new Thread(
-                        async () => await ThreadAction(job, doneEvent)));
+                threads.Add(thread);
             }
 
             return new Tuple<List<Thread>, List<ManualResetEvent>>(threads, events);
         }
 
-        private CrawlProgress GetCrawlProgress()
+        private CrawlReport GetCrawlProgress()
         {
-            return new CrawlProgress
+            return new CrawlReport
             {
                 Start = _startTime,
                 CrawlCount = _crawled.Count,
@@ -106,26 +126,38 @@ namespace YAC
 
         private CrawlReport GetCrawlReport()
         {
-            var report = GetCrawlProgress() as CrawlReport;
+            var report = GetCrawlProgress();
             report.Data = _results;
             return report;
         }
 
-        private async Task ThreadAction(CrawlJob job, ManualResetEvent doneEvent)
+        private async Task ThreadAction(IWorker worker, CrawlJob job)
         {
             // sort out multi threading holding pattern
+            if (worker.Id != 0)
+            {
+                while (_queue.Count < worker.Id && !job.CancellationToken.IsCancellationRequested && !_aThreadIsComplete)
+                {
+                    Thread.Sleep(100);
+                }
+            }
 
             while (job.CompletionConditions.All(cc => !cc.ConditionMet(GetCrawlProgress())) && 
                    !job.CancellationToken.IsCancellationRequested &&
                    !_aThreadIsComplete)
             {
-                // get the next Uri to crawl
-                var next = GetNext();
-
-                if (next == null)
+                var next = Policy.Wrap(_retry, _fallback).Execute(() =>
                 {
+                    var n = GetNext();
+
+                    if (n == null)
+                        throw new CrawlQueueEmptyException();
+
+                    return n;
+                });
+
+                if (_aThreadIsComplete)
                     break;
-                }
 
                 try
                 {
@@ -171,7 +203,7 @@ namespace YAC
             if (!_aThreadIsComplete)
                 _aThreadIsComplete = true;
 
-            doneEvent.Set();
+            worker.DoneEvent.Set();
         }
 
         private Uri GetNext()
