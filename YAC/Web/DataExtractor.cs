@@ -12,8 +12,8 @@ namespace YAC.Web
 
         public static ExtractedData Extract(string html, Uri domain, string pattern)
         {
-            var customRegexUsed = string.IsNullOrEmpty(pattern);
-            var primedPattern = customRegexUsed ? "" : "|" + pattern;
+            var customRegexUsed = !string.IsNullOrEmpty(pattern);
+            var primedPattern = customRegexUsed ? "|" + pattern : "";
             var combinedRegexPatterns = LINK_REGEX + primedPattern;
 
             var regex = new Regex(combinedRegexPatterns);
@@ -58,13 +58,13 @@ namespace YAC.Web
                     {
                         foreach (var groupName in regex.GetGroupNames())
                         {
-                            // don't add the yaclinks to the data
-                            if (groupName == "yaclink")
+                            // don't add the yaclinks to the data and group 0 is the entire string (expect the custom regex has a capture group)
+                            if (groupName == "yaclink" || groupName == "0")
                                 continue;
 
                             var value = m.Groups[groupName];
 
-                            if (value != null)
+                            if (value.Success)
                             {
                                 data.Data.Add(new Tuple<string, string>(groupName, value.Value));
                             }

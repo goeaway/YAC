@@ -28,14 +28,19 @@ namespace YAC.Tests
                         new MaxTimeCondition(TimeSpan.FromMinutes(3)),
                         new MaxResultsFoundCondition(2000)
                     },
-                    ThreadAllowance = 10,
-                    Regex = "<img.+?src\"(?<image>.+?)\""
+                    ThreadAllowance = 1,
+                    Regex = "<img.+?src=\"(?<image>.+?)\""
                 };
                 var results = await crawler.Crawl(job);
 
                 Console.WriteLine(results.CrawlCount);
                 Console.WriteLine(results.QueueSize);
                 Console.WriteLine(results.ResultsCount);
+
+                foreach (var item in results.Data)
+                {
+                    Console.WriteLine(item.Item2);
+                }
             }
         }
     }

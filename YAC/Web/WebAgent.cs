@@ -51,7 +51,6 @@ namespace YAC.Web
             ServicePointManager.Expect100Continue = false;
             
             _rateLimiter.HoldUntilReady(uri.Host);
-
             return (HttpWebResponse)(await request.GetResponseAsync());
         }
 
