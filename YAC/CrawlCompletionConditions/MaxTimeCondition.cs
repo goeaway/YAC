@@ -17,7 +17,7 @@ namespace YAC.CrawlCompletionConditions
 
         public bool ConditionMet(CrawlProgress progress)
         {
-            return progress.CrawlDuration >= _maxTime;
+            return (DateTime.Now - progress.Start) >= _maxTime;
         }
     }
 }
