@@ -8,6 +8,6 @@ namespace YAC.Models
     public class ExtractedData
     {
         public IList<Uri> Links { get; set; } = new List<Uri>();
-        public IList<Tuple<string, string>> Data { get; set; } = new List<Tuple<string, string>();
+        public IList<Tuple<string, string>> Data { get; set; } = new List<Tuple<string, string>>();
     }
 }

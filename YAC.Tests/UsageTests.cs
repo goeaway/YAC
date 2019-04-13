@@ -20,14 +20,14 @@ namespace YAC.Tests
             {
                 var job = new CrawlJob
                 {
-                    Domain = new Uri("https://google.com"),
+                    Domain = new Uri("https://reddit.com/r/pics"),
                     CompletionConditions = new List<ICrawlCompletionCondition>
                     {
-                        new MaxPagesCrawledCondition(),
-                        new MaxTimeCondition(),
-                        new MaxResultsFoundCondition()
+                        new MaxPagesCrawledCondition(100),
+                        new MaxTimeCondition(TimeSpan.FromMinutes(3)),
+                        new MaxResultsFoundCondition(2000)
                     },
-                    Regex = "q"
+                    Regex = "<img.+?src\"(?<image>.+?)\""
                 };
                 var results = await crawler.Crawl(job);
             }

@@ -9,12 +9,11 @@ namespace YAC.Web
     {
         public bool CanAccess(string domain)
         {
-            throw new NotImplementedException();
+            return true;
         }
 
         public void HoldUntilReady(string domain)
         {
-            throw new NotImplementedException();
         }
     }
 }

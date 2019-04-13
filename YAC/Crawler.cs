@@ -7,6 +7,7 @@ using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using YAC.Abstractions;
+using YAC.Models;
 using YAC.Web;
 
 namespace YAC
@@ -22,6 +23,7 @@ namespace YAC
         private ConcurrentBag<Uri> _crawled;
         private ConcurrentBag<Tuple<string, string>> _results;
         private IEnumerable<string> _disallowedUrls;
+        private DateTime _startTime;
 
         public Crawler(IWebAgent webAgent)
         {
@@ -50,20 +52,13 @@ namespace YAC
 
             // create the allowed amount of threads for the job
             var threadsAndDoneEvents = CreateThreads(job);
+
+            _startTime = DateTime.Now;
             // hold all but one thread in a pattern until there is work for them
             // start the first thread off, with the job of parsing the domain page provided
-            threadsAndDoneEvents.Item1.First().Start();
-
-            if (threadsAndDoneEvents.Item1.Count() > 1)
+            foreach (var thread in threadsAndDoneEvents.Item1)
             {
-                // once work comes in for each thread, release from the holding pattern and allow them to work
-                for (int i = 1; i < threadsAndDoneEvents.Item1.Count(); i++)
-                {
-                    if (_queue.Count >= i)
-                    {
-                        threadsAndDoneEvents.Item1[i].Start();
-                    }
-                }
+                thread.Start();
             }
 
             // wait for done events
@@ -96,9 +91,22 @@ namespace YAC
             return new Tuple<List<Thread>, List<ManualResetEvent>>(threads, events);
         }
 
+        private CrawlProgress GetCrawlProgress()
+        {
+            return new CrawlProgress
+            {
+                Start = _startTime,
+                CrawlCount = _crawled.Count,
+                ResultsCount = _results.Count,
+                QueueSize =  _queue.Count
+            };
+        }
+
         private async Task ThreadAction(CrawlJob job, ManualResetEvent doneEvent)
         {
-            while (job.CompletionConditions.All(cc => !cc.ConditionMet()) && 
+            // sort out multi threading holding pattern
+
+            while (job.CompletionConditions.All(cc => !cc.ConditionMet(GetCrawlProgress())) && 
                    !job.CancellationToken.IsCancellationRequested &&
                    !_aThreadIsComplete)
             {
@@ -113,36 +121,45 @@ namespace YAC
                 try
                 {
                     // access it
-                    var response = _webAgent.ExecuteRequest(next);
+                    var responseTask = _webAgent.ExecuteRequest(next);
 
                     // log that we've crawled it
                     _crawled.Add(next);
 
-                    var html = HTMLRetriever.GetHTML(_webAgent.GetCompressedStream(await response));
+                    var response = await responseTask;
 
-                    // parse the contents for new links and data user wants
-                    var data = DataExtractor.Extract(html, job.Domain, job.Regex);
-
-                    // add links found to queue if they're part of the domain and not already crawled and not already in the queue
-                    // and not a disallowed url
-                    // and make sure the queue is not too big
-                    foreach (var link in data.Links)
+                    if (response != null)
                     {
-                        if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                        var html = HTMLRetriever.GetHTML(_webAgent.GetCompressedStream(response));
+
+                        // parse the contents for new links and data user wants
+                        var data = DataExtractor.Extract(html, job.Domain, job.Regex);
+
+                        // add links found to queue if they're part of the domain and not already crawled and not already in the queue
+                        // and not a disallowed url
+                        // and make sure the queue is not too big
+                        foreach (var link in data.Links)
                         {
-                            _queue.Enqueue(link);
+                            if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                            {
+                                _queue.Enqueue(link);
+                            }
                         }
-                    }
 
-                    // add data matching the regex to the return list
-                    foreach (var foundData in data.Data)
-                    {
-                        _results.Add(foundData);
+                        // add data matching the regex to the return list
+                        foreach (var foundData in data.Data)
+                        {
+                            _results.Add(foundData);
+                        }
                     }
                 }
                 catch (WebException e)
                 {
-                       
+
+                }
+                catch (Exception e)
+                {
+                    throw e;
                 }
             }
 

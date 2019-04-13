@@ -49,7 +49,7 @@ namespace YAC.Web
                         }
                         else if (value.StartsWith(domain.AbsolutePath))
                         {
-                            data.Links.Add(new Uri("http://" + domain.Host + value));
+                            data.Links.Add(new Uri($"{domain.Scheme}://" + domain.Host + value));
                         }
                     }
 

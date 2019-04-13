@@ -57,13 +57,18 @@ namespace YAC.Web
 
         public Stream GetCompressedStream(HttpWebResponse response)
         {
-            // check each accepted and return a new stream if its contained
-            foreach (var encoding in _acceptedEncoding)
+            if (response.ContentEncoding != null)
             {
-                // Value is the initialiser method
-                if (response.ContentEncoding.ToLower().Contains(encoding.Key))
-                    return encoding.Value(response.GetResponseStream());
+                // check each accepted and return a new stream if its contained
+                foreach (var encoding in _acceptedEncoding)
+                {
+
+                    // Value is the initialiser method
+                    if (response.ContentEncoding.ToLower().Contains(encoding.Key))
+                        return encoding.Value(response.GetResponseStream());
+                }
             }
+
             // give back the original if no encoders were found
             return response.GetResponseStream();
         }

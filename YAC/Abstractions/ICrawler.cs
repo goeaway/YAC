@@ -7,6 +7,6 @@ namespace YAC.Abstractions
 {
     public interface ICrawler : IDisposable
     {
-        Task<IEnumerable<string>> Crawl(CrawlJob job);
+        Task<IEnumerable<Tuple<string, string>>> Crawl(CrawlJob job);
     }
 }
