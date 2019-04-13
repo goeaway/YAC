@@ -19,6 +19,8 @@ namespace YAC
         private const int QUEUE_MAX = 2000;
 
         private readonly IWebAgent _webAgent;
+        private readonly TimeSpan _updateInterval;
+        private readonly Action<CrawlProgress> _updateAction;
 
         private bool _aThreadIsComplete;
         private ConcurrentQueue<Uri> _queue;
@@ -29,8 +31,6 @@ namespace YAC
         private DateTime _startTime;
         private CancellationTokenSource _cancelSource;
         private DateTime _lastUpdate;
-        private readonly TimeSpan _updateInterval;
-        private readonly Action<CrawlProgress> _updateAction;
 
         public bool IsRunning { get; private set; }
 
@@ -198,7 +198,7 @@ namespace YAC
                     });
 
                 var retry = Policy<Uri>.Handle<CrawlQueueEmptyException>()
-                    .WaitAndRetry(30, tryNum => TimeSpan.FromMilliseconds(tryNum * 200));
+                    .WaitAndRetry(10, tryNum => TimeSpan.FromMilliseconds(tryNum * 200));
 
                 // will attempt to get a new item from the queue, retrying as per above policies
                 var next = Policy.Wrap(fallback, retry).Execute(() =>
@@ -237,7 +237,10 @@ namespace YAC
                         // and make sure the queue is not too big
                         foreach (var link in data.Links)
                         {
-                            if (_queue.Count < QUEUE_MAX && !_queue.Contains(link) && !_crawled.Contains(link))
+                            if (_queue.Count < QUEUE_MAX && 
+                                !_queue.Contains(link) && 
+                                !_crawled.Contains(link) && 
+                                job.EnqueueConditions.All(ec => ec.ConditionMet(link)))
                             {
                                 _queue.Enqueue(link);
                             }

@@ -8,25 +8,24 @@ namespace YAC.Web
 {
     public static class DataExtractor
     {
-        private const string LINK_REGEX = "<a.+?href=\"(?<yaclink>.+?)\".+?>";
+        private const string LINK_REGEX_GROUP_NAME = "yaclink";
+        private static readonly string linkRegex = $"<a.+?href=\"(?<{LINK_REGEX_GROUP_NAME}>.+?)\".+?>";
 
         public static ExtractedData Extract(string html, Uri domain, string pattern)
         {
             var customRegexUsed = !string.IsNullOrEmpty(pattern);
             var primedPattern = customRegexUsed ? "|" + pattern : "";
-            var combinedRegexPatterns = LINK_REGEX + primedPattern;
+            var combinedRegexPatterns = linkRegex + primedPattern;
 
             var regex = new Regex(combinedRegexPatterns);
-
             var matches = regex.Matches(html);
-            
             var data = new ExtractedData();
 
             foreach(Match m in matches)
             {
                 if (m.Success)
                 {
-                    var link = m.Groups["yaclink"];
+                    var link = m.Groups[LINK_REGEX_GROUP_NAME];
 
                     if (link != null)
                     {
@@ -59,7 +58,7 @@ namespace YAC.Web
                         foreach (var groupName in regex.GetGroupNames())
                         {
                             // don't add the yaclinks to the data and group 0 is the entire string (expect the custom regex has a capture group)
-                            if (groupName == "yaclink" || groupName == "0")
+                            if (groupName == LINK_REGEX_GROUP_NAME || groupName == "0")
                                 continue;
 
                             var value = m.Groups[groupName];

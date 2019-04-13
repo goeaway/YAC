@@ -27,7 +27,8 @@ namespace YAC
         }
 
         public string Regex { get; set; }
-        public IEnumerable<ICrawlCompletionCondition> CompletionConditions { get; set; }
+        public IEnumerable<ICrawlCompletionCondition> CompletionConditions { get; set; } = new List<ICrawlCompletionCondition>();
+        public IEnumerable<ICrawlEnqueueCondition> EnqueueConditions { get; set; } = new List<ICrawlEnqueueCondition>();
         public int ThreadAllowance { get; set; }
     }
 }

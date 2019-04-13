@@ -7,12 +7,14 @@ using System.Net;
 using System.Text;
 using System.Threading.Tasks;
 using YAC.Abstractions;
+using YAC.Abstractions.Services;
 
 namespace YAC.Web
 {
     public class WebAgent : IWebAgent
     {
         private readonly IRateLimiter _rateLimiter;
+        private readonly IProxyService _proxyService;
         private readonly Dictionary<string, Func<Stream, Stream>> _acceptedEncoding;
 
         public string AgentName => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36";
@@ -24,9 +26,10 @@ namespace YAC.Web
         private string EncodingString
             => string.Join(",", _acceptedEncoding.Select(e => e.Key));
 
-        public WebAgent(IRateLimiter rateLimiter)
+        public WebAgent(IRateLimiter rateLimiter, IProxyService proxyService)
         {
             _rateLimiter = rateLimiter;
+            _proxyService = proxyService;
             _acceptedEncoding = new Dictionary<string, Func<Stream, Stream>>
             {
                 { "gzip", (stream) => new GZipStream(stream, CompressionMode.Decompress)  },
@@ -45,6 +48,8 @@ namespace YAC.Web
 
             request.KeepAlive = true;
             request.MaximumResponseHeadersLength = MAX_RESPONSE_HEADER_LENGTH;
+
+            request.Proxy = _proxyService.GetProxy();
 
             ServicePointManager.DefaultConnectionLimit = DEFAULT_CONNECTION_LIMIT;
             ServicePointManager.UseNagleAlgorithm = false;

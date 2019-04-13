@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using YAC.Abstractions;
 using YAC.CrawlCompletionConditions;
+using YAC.Services;
 using YAC.Web;
 
 namespace YAC.Tests
@@ -17,7 +18,8 @@ namespace YAC.Tests
         public async Task Test()
         {
             var limiter = new RollingWindowRateLimiter(10, TimeSpan.FromMinutes(1));
-            var agent = new WebAgent(limiter);
+            var proxyService = new DummyProxyService();
+            var agent = new WebAgent(limiter, proxyService);
 
             using (var crawler = new Crawler(agent))
             {
