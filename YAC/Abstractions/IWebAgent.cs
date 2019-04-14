@@ -10,6 +10,10 @@ namespace YAC.Abstractions
     public interface IWebAgent
     {
         string AgentName { get; }
+        /// <summary>
+        /// Gets a collection of cookies which are added to each request
+        /// </summary>
+        IList<Cookie> Cookies { get; }
         Task<HttpWebResponse> ExecuteRequest(Uri uri);
         Stream GetCompressedStream(HttpWebResponse response);
     }

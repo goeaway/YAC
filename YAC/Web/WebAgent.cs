@@ -18,6 +18,8 @@ namespace YAC.Web
         private readonly Dictionary<string, Func<Stream, Stream>> _acceptedEncoding;
 
         public string AgentName => "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/67.0.3396.87 Safari/537.36";
+        public IList<Cookie> Cookies { get; } 
+            = new List<Cookie>();
 
         private const int MAX_RESPONSE_HEADER_LENGTH = 200;
         private const int REQUEST_TIMEOUT = 3000;
@@ -49,6 +51,19 @@ namespace YAC.Web
             request.KeepAlive = true;
             request.MaximumResponseHeadersLength = MAX_RESPONSE_HEADER_LENGTH;
 
+            if (Cookies.Count > 0)
+            {
+                if (request.CookieContainer == null)
+                {
+                    request.CookieContainer = new CookieContainer();
+                }
+
+                foreach (var cookie in Cookies)
+                {
+                   request.CookieContainer.Add(cookie);
+                }
+            }
+            
             request.Proxy = _proxyService.GetProxy();
 
             ServicePointManager.DefaultConnectionLimit = DEFAULT_CONNECTION_LIMIT;
