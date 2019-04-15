@@ -22,23 +22,23 @@ namespace YAC.Tests
             var proxyService = new DefaultProxyService();
             var agent = new WebAgent(limiter, proxyService);
 
+            var job = new CrawlJob()
+            {
+                Domain = new Uri("https://reddit.com/"),
+                CompletionConditions = new List<ICrawlCompletionCondition>
+                {
+                    new MaxPagesCrawledCondition(100),
+                    new MaxTimeCondition(TimeSpan.FromMinutes(3)),
+                    new MaxResultsFoundCondition(2000)
+                },
+                ThreadAllowance = 10,
+                Cookies = new List<Cookie> { new Cookie("over18", "1", "/", "reddit.com") },
+                Regex = "<img.+?src=\"(?<image>.+?)\""
+            };
+
             using (var crawler = new Crawler(agent))
             {
-                var job = new CrawlJob()
-                {
-                    Domain = new Uri("https://reddit.com/r/"),
-                    CompletionConditions = new List<ICrawlCompletionCondition>
-                    {
-                        new MaxPagesCrawledCondition(100),
-                        new MaxTimeCondition(TimeSpan.FromMinutes(3)),
-                        new MaxResultsFoundCondition(2000)
-                    },
-                    ThreadAllowance = 10,
-                    Regex = "<img.+?src=\"(?<image>.+?)\""
-                };
-                var crawlTask = crawler.Crawl(job, new List<Cookie> { new Cookie("over18", "1", "/", "reddit.com") });
-
-                var results = await crawlTask;
+                var results = await crawler.Crawl(job);
 
                 Console.WriteLine(results.CrawlCount);
                 Console.WriteLine(results.QueueSize);

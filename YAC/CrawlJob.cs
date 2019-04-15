@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
 using System.Text;
 using System.Threading;
 using YAC.Abstractions;
@@ -53,5 +54,9 @@ namespace YAC
         /// you only want to crawl the pages in the SeedUris collection
         /// </summary>
         public bool FindNewLinks { get; set; } = true;
+        /// <summary>
+        /// Gets or sets a collection of <see cref="Cookie" /> to be added to each request for this crawl
+        /// </summary>
+        public IList<Cookie> Cookies { get; set; } = new List<Cookie>();
     }
 }

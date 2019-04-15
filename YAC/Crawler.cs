@@ -51,6 +51,7 @@ namespace YAC
             _queue = new ConcurrentQueue<Uri>(seedUris);
             _crawled = new ConcurrentBag<Uri>();
             _results = new ConcurrentBag<Tuple<string, string>>();
+            _disallowedUrls = new List<string>();
             _errors = new ConcurrentBag<Exception>();
             _aThreadIsComplete = false;
             _cancelSource = new CancellationTokenSource();
@@ -69,24 +70,16 @@ namespace YAC
             _cancelSource.Cancel();
         }
 
-        public Task<CrawlReport> Crawl(CrawlJob job)
-        {
-            return Crawl(job, new List<Cookie>());
-        }
-
-        public async Task<CrawlReport> Crawl(CrawlJob job, IList<Cookie> cookies)
+        public async Task<CrawlReport> Crawl(CrawlJob job)
         {
             if (job == null)
                 throw new ArgumentNullException(nameof(job));
-
-            if (cookies == null)
-                throw new ArgumentNullException(nameof(cookies));
 
             IsRunning = true;
 
             try
             {
-                Setup(job.SeedUris, cookies);
+                Setup(job.SeedUris, job.Cookies);
 
                 // try and parse the robots.txt file of the domain and add any disallowed links to a read only collection
                 _disallowedUrls = await RobotParser.GetDisallowedUrls(_webAgent, job.Domain.Host);
