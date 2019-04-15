@@ -22,8 +22,6 @@ namespace YAC.Tests
             var proxyService = new DefaultProxyService();
             var agent = new WebAgent(limiter, proxyService);
 
-            agent.Cookies.Add(new Cookie("over18", "1", "/", "reddit.com"));
-
             using (var crawler = new Crawler(agent))
             {
                 var job = new CrawlJob()
@@ -38,7 +36,7 @@ namespace YAC.Tests
                     ThreadAllowance = 10,
                     Regex = "<img.+?src=\"(?<image>.+?)\""
                 };
-                var crawlTask = crawler.Crawl(job);
+                var crawlTask = crawler.Crawl(job, new List<Cookie> { new Cookie("over18", "1", "/", "reddit.com") });
 
                 var results = await crawlTask;
 

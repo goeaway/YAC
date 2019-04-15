@@ -13,7 +13,7 @@ namespace YAC.Abstractions
         /// <summary>
         /// Gets a collection of cookies which are added to each request
         /// </summary>
-        IList<Cookie> Cookies { get; }
+        IList<Cookie> Cookies { get; set; }
         Task<HttpWebResponse> ExecuteRequest(Uri uri);
         Stream GetCompressedStream(HttpWebResponse response);
     }

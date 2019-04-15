@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -9,8 +10,8 @@ namespace YAC.Web
 {
     public class RollingWindowRateLimiter : IRateLimiter
     {
-        private readonly Dictionary<string, List<DateTime>> _timeStamps
-            = new Dictionary<string, List<DateTime>>();
+        private readonly ConcurrentDictionary<string, List<DateTime>> _timeStamps
+            = new ConcurrentDictionary<string, List<DateTime>>();
 
         private readonly int _maxAccessesPerPeriod;
         private readonly TimeSpan _window;
@@ -34,7 +35,7 @@ namespace YAC.Web
             // if nothing, add the domain as a key and add a single item using DateTime.Now to it, then return
             if (!exists)
             {
-                _timeStamps.Add(domain, new List<DateTime> { DateTime.Now });
+                _timeStamps.TryAdd(domain, new List<DateTime> { DateTime.Now });
                 return;
             }
 

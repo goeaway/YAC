@@ -45,7 +45,7 @@ namespace YAC
             _updateAction = updateAction;
         }
 
-        private void Setup(IReadOnlyCollection<Uri> seedUris)
+        private void Setup(IReadOnlyCollection<Uri> seedUris, IList<Cookie> cookies)
         {
             // add the seeds to the queue first
             _queue = new ConcurrentQueue<Uri>(seedUris);
@@ -54,6 +54,9 @@ namespace YAC
             _errors = new ConcurrentBag<Exception>();
             _aThreadIsComplete = false;
             _cancelSource = new CancellationTokenSource();
+
+            if(cookies != null && cookies.Count > 0)
+                _webAgent.Cookies = cookies;
         }
 
         #region - Interface -
@@ -66,26 +69,38 @@ namespace YAC
             _cancelSource.Cancel();
         }
 
-        public async Task<CrawlReport> Crawl(CrawlJob job)
+        public Task<CrawlReport> Crawl(CrawlJob job)
         {
-            Setup(job.SeedUris);
+            return Crawl(job, new List<Cookie>());
+        }
 
-            // try and parse the robots.txt file of the domain and add any disallowed links to a read only collection
-            _disallowedUrls = await RobotParser.GetDisallowedUrls(_webAgent, job.Domain.Host);
+        public async Task<CrawlReport> Crawl(CrawlJob job, IList<Cookie> cookies)
+        {
+            if (job == null)
+                throw new ArgumentNullException(nameof(job));
 
-            // quit early as we are not allowed to go on this domain
-            if (_disallowedUrls.Contains("/"))
-                return GetCrawlReport();
+            if (cookies == null)
+                throw new ArgumentNullException(nameof(cookies));
 
-            // create the allowed amount of threads for the job
-            var threadsAndDoneEvents = CreateThreads(job);
-
-            _startTime = DateTime.Now;
-            _lastUpdate = _startTime;
             IsRunning = true;
 
             try
             {
+                Setup(job.SeedUris, cookies);
+
+                // try and parse the robots.txt file of the domain and add any disallowed links to a read only collection
+                _disallowedUrls = await RobotParser.GetDisallowedUrls(_webAgent, job.Domain.Host);
+
+                // quit early as we are not allowed to go on this domain
+                if (_disallowedUrls.Contains("/"))
+                    return GetCrawlReport();
+
+                // create the allowed amount of threads for the job
+                var threadsAndDoneEvents = CreateThreads(job);
+
+                _startTime = DateTime.Now;
+                _lastUpdate = _startTime;
+
                 // hold all but one thread in a pattern until there is work for them
                 // start the first thread off, with the job of parsing the domain page provided
                 foreach (var thread in threadsAndDoneEvents.Item1)
@@ -232,12 +247,16 @@ namespace YAC
                         // parse the contents for new links and data user wants
                         var data = DataExtractor.Extract(html, job.Domain, job.Regex);
 
-                        // add links found to queue if they're part of the domain and not already crawled and not already in the queue
-                        // and not a disallowed url
-                        // and make sure the queue is not too big
+                        // add each of the links extracted if:
+                        // the queue is not too large
+                        // the link is not disallowed by the domain's robots.txt file
+                        // the link is not already in the queue
+                        // the link has not already been crawled
+                        // each of the user defined enqueue conditions returns true 
                         foreach (var link in data.Links)
                         {
                             if (_queue.Count < QUEUE_MAX && 
+                                RobotParser.UriIsAllowed(_disallowedUrls, link) && 
                                 !_queue.Contains(link) && 
                                 !_crawled.Contains(link) && 
                                 job.EnqueueConditions.All(ec => ec.ConditionMet(link)))
