@@ -279,11 +279,8 @@ namespace YAC
 
         private Uri GetNext()
         {
-            if (_queue.IsEmpty)
+            if (_queue.IsEmpty || !_queue.TryDequeue(out Uri next))
                 return null;
-
-            if (!_queue.TryDequeue(out Uri next))
-                next = GetNext();
 
             return next;
         }
